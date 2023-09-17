@@ -39,14 +39,14 @@ public class CabApplication {
 		}
 	}
 
-	Dictionary<String, CabStatus> cabsInfo;
+	Map<String, CabStatus> cabsInfo;
 
 	public static void main(String[] args) {
 		SpringApplication.run(CabApplication.class, args);
 	}
 
 	public CabApplication() throws Exception {
-		cabsInfo = new Hashtable<String, CabStatus>();
+		cabsInfo = new HashMap<String, CabStatus>();
 
 		try {
 			File file = new File("IDs.txt");
@@ -55,6 +55,7 @@ public class CabApplication {
 		catch (Exception e) {
 			e.printStackTrace();
 		}
+
 	}
 
 	//This will read the file ......................................................
@@ -66,10 +67,11 @@ public class CabApplication {
 
 		while(true) {
 			String cabId = inputStream.nextLine();
+			System.out.println(cabId);
 			if(cabId.compareTo("****") == 0) break;
 			else {
-				CabStatus cabInfo = new CabStatus();
-				cabsInfo.put(cabId, cabInfo);
+				CabStatus cabinfo = new CabStatus();
+				cabsInfo.put(cabId, cabinfo);
 			}
 		}
 	}
@@ -82,19 +84,26 @@ public class CabApplication {
 
 	//................................................................................
 	@RequestMapping("/requestRide")
-	public boolean requestRide(@RequestParam(value = "cabId", defaultValue = "null") String cabId, @RequestParam(value = "rideId", defaultValue = "null") String rideId, @RequestParam(value = "sourceLoc", defaultValue = "-1") int sourceLoc, @RequestParam(value = "destinationLoc", defaultValue = "-1") int destinationLoc)
+	public boolean requestRide(@RequestParam(value = "cabId", defaultValue = "101") String cabId, @RequestParam(value = "rideId", defaultValue = "101") String rideId, @RequestParam(value = "sourceLoc", defaultValue = "-1") int sourceLoc, @RequestParam(value = "destinationLoc", defaultValue = "-1") int destinationLoc)
 	{
 		if(cabsInfo.get(cabId) == null) return false;
 		if(cabsInfo.get(cabId).signed_In_State != Signed_In_State.AVAILABLE) return false;
+		
+		CabStatus cabinfo = cabsInfo.get(cabId);
+
 		if(cabsInfo.get(cabId).isInterested == false) 
-		{
-			cabsInfo.get(cabId).isInterested = true;
+		{	
+			cabinfo.isInterested = true;
+			cabsInfo.put(cabId , cabinfo);
 			return false;
 		}
-		cabsInfo.get(cabId).signed_In_State = Signed_In_State.COMMITTED;
-		cabsInfo.get(cabId).isInterested = false;
-		cabsInfo.get(cabId).destinationPos = destinationLoc;
-		cabsInfo.get(cabId).current_rideId = rideId;
+		cabinfo.signed_In_State = Signed_In_State.COMMITTED;
+		cabinfo.isInterested = false;
+		cabinfo.destinationPos = destinationLoc;
+		cabinfo.current_rideId = rideId;
+
+		cabsInfo.put(cabId , cabinfo);
+
 		return true;
 
 	}
@@ -103,10 +112,12 @@ public class CabApplication {
 	@RequestMapping("/rideStarted")
 	public boolean rideStarted(@RequestParam(value = "cabId", defaultValue = "null") String cabId,@RequestParam(value = "rideId", defaultValue = "null") String rideId)
 	{
+		CabStatus cabinfo = cabsInfo.get(cabId);
 		if(cabsInfo.get(cabId) == null) return false;
 		if(cabsInfo.get(cabId).signed_In_State != Signed_In_State.COMMITTED) return false;
-		if(cabsInfo.get(cabId).current_rideId != rideId) return false;
-		cabsInfo.get(cabId).signed_In_State = Signed_In_State.GIVING_RIDE;
+		if(cabsInfo.get(cabId).current_rideId.equals(rideId) == false) return false;
+		cabinfo.signed_In_State = Signed_In_State.GIVING_RIDE;
+		cabsInfo.put(cabId , cabinfo);
 		return true;
 	}
 
@@ -116,12 +127,14 @@ public class CabApplication {
 	@RequestMapping("/rideCanceled")
 	public boolean rideCanceled(@RequestParam(value = "cabId", defaultValue = "null") String cabId,@RequestParam(value = "rideId", defaultValue = "null") String rideId)
 	{
+		CabStatus cabinfo = cabsInfo.get(cabId);
 		if(cabsInfo.get(cabId) == null) return false;
 		if(cabsInfo.get(cabId).signed_In_State != Signed_In_State.COMMITTED) return false;
-		if(cabsInfo.get(cabId).current_rideId != rideId) return false;
-		cabsInfo.get(cabId).signed_In_State = Signed_In_State.AVAILABLE;
-		cabsInfo.get(cabId).destinationPos = -1;
-		cabsInfo.get(cabId).current_rideId = "null";
+		if(cabsInfo.get(cabId).current_rideId.equals(rideId) == false) return false;
+		cabinfo.signed_In_State = Signed_In_State.AVAILABLE;
+		cabinfo.destinationPos = -1;
+		cabinfo.current_rideId = "null";
+		cabsInfo.put(cabId , cabinfo);
 		return true;
 	}
 
@@ -129,38 +142,51 @@ public class CabApplication {
 	@RequestMapping("/rideEnded")
 	public boolean rideEnded(@RequestParam(value = "cabId", defaultValue = "null") String cabId,@RequestParam(value = "rideId", defaultValue = "null") String rideId)
 	{
+		CabStatus cabinfo = cabsInfo.get(cabId);
 		if(cabsInfo.get(cabId) == null) return false;
 		if(cabsInfo.get(cabId).signed_In_State != Signed_In_State.GIVING_RIDE) return false;
-		if(cabsInfo.get(cabId).current_rideId != rideId) return false;
+		if(cabsInfo.get(cabId).current_rideId.equals(rideId) == false) return false;
 		//......network call
+		Scanner responseReader = null;
 
 		try {
-			URL url = new URL("http://localhost:8081/rideEnded?rideId=" + rideId);
-			url.openConnection().connect();
+			URL url = new URL("http://172.17.0.3:8080/rideEnded?rideId=" + rideId);
+			responseReader = new Scanner(url.openStream());
 		}
 		catch(Exception e) {
 			e.printStackTrace();
 		}
 		
-		cabsInfo.get(cabId).signed_In_State = Signed_In_State.AVAILABLE;
-		cabsInfo.get(cabId).currentPos = cabsInfo.get(cabId).destinationPos;
-		cabsInfo.get(cabId).no_of_given_rides += 1;
-		cabsInfo.get(cabId).destinationPos = -1;
-		cabsInfo.get(cabId).current_rideId = "null";
+		cabinfo.signed_In_State = Signed_In_State.AVAILABLE;
+		cabinfo.currentPos = cabinfo.destinationPos;
+		cabinfo.no_of_given_rides += 1;
+		cabinfo.destinationPos = -1;
+		cabinfo.current_rideId = "null";
+		cabsInfo.put(cabId , cabinfo);
 		return true;
 	}
 
 	@RequestMapping("/signIn")
-	public boolean signIn(@RequestParam(value = "cabId", defaultValue = "null") String cabId,@RequestParam(value = "initialPos", defaultValue = "-1") int initialPos)
+	public boolean signIn(@RequestParam(value = "cabId", defaultValue = "101") String cabId,@RequestParam(value = "initialPos", defaultValue = "-1") int initialPos)
 	{
+		
+		//This following line is for the debug purpose
+		//System.out.println(cabId + " " + initialPos);
+		CabStatus cabinfo = cabsInfo.get(cabId);
+
 		if(cabsInfo.get(cabId) == null) return false;
+
+		System.out.println("Error is below");
+
 		if(cabsInfo.get(cabId).state != State.SIGNED_OUT) return false;
+
+		//System.out.println("Error is below");
 			
 		//network
 		String response = ""; //updated
 		Scanner responseReader = null;
 		try {
-			URL url = new URL("http://localhost:8081/cabSignsIn?cabId=" + cabId + "&initialPos=" + initialPos);
+			URL url = new URL("http://172.17.0.3:8080/cabSignsIn?cabId=" + cabId + "&initialPos=" + initialPos);
 			responseReader = new Scanner(url.openStream());
 
 			while(responseReader.hasNext()) {
@@ -173,12 +199,19 @@ public class CabApplication {
 		finally {
 			if(responseReader != null) responseReader.close(); //updated
 		}
-
+		
+		//System.out.println("The response is this --------------- > " + response);
+		
 		if(!response.equals("true")) return false;
-		cabsInfo.get(cabId).state = State.SIGNED_IN;
-		cabsInfo.get(cabId).signed_In_State = Signed_In_State.AVAILABLE;
-		cabsInfo.get(cabId).isInterested = true;
-		cabsInfo.get(cabId).currentPos = initialPos;
+
+		//System.out.println("Error is below");
+
+		cabinfo.state = State.SIGNED_IN;
+		cabinfo.signed_In_State = Signed_In_State.AVAILABLE;
+		cabinfo.isInterested = true;
+		cabinfo.currentPos = initialPos;
+		cabsInfo.put(cabId , cabinfo);
+		
 		return true;
 
 	}
@@ -186,6 +219,9 @@ public class CabApplication {
 	@RequestMapping("/signOut")
 	public boolean signOut(@RequestParam(value = "cabId", defaultValue = "null") String cabId)
 	{
+
+		CabStatus cabinfo = cabsInfo.get(cabId);
+
 		if(cabsInfo.get(cabId) == null) return false;
 		if(cabsInfo.get(cabId).state != State.SIGNED_IN) return false;
 		
@@ -193,7 +229,7 @@ public class CabApplication {
 		String response = ""; //updated
 		Scanner responseReader = null;
 		try {
-			URL url = new URL("http://localhost:8081/cabSignsOut?cabId=" + cabId);
+			URL url = new URL("http://172.17.0.3:8080/cabSignsOut?cabId=" + cabId);
 			responseReader = new Scanner(url.openStream());
 
 			while(responseReader.hasNext()) {
@@ -208,13 +244,14 @@ public class CabApplication {
 		}
 
 		if(!response.equals("true")) return false;
-		cabsInfo.get(cabId).state = State.SIGNED_OUT;
-		cabsInfo.get(cabId).signed_In_State = Signed_In_State.NOT_APPLICABLE;
-		cabsInfo.get(cabId).isInterested = false;
-		cabsInfo.get(cabId).no_of_given_rides = 0;
-		cabsInfo.get(cabId).current_rideId = "null";
-		cabsInfo.get(cabId).currentPos = -1;
-		cabsInfo.get(cabId).destinationPos = -1;
+		cabinfo.state = State.SIGNED_OUT;
+		cabinfo.signed_In_State = Signed_In_State.NOT_APPLICABLE;
+		cabinfo.isInterested = false;
+		cabinfo.no_of_given_rides = 0;
+		cabinfo.current_rideId = "null";
+		cabinfo.currentPos = -1;
+		cabinfo.destinationPos = -1;
+		cabsInfo.put(cabId , cabinfo);
 		return true;
 
 	}

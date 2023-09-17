@@ -22,13 +22,25 @@ public class WalletApplication {
 	  try {
 	  	BufferedReader br = new BufferedReader(new FileReader(file));
 
-		String st; 
+		String st;
+		st = br.readLine();
+
+		while(true){
+			st = br.readLine();
+			if(st.compareTo("****") == 0) break;
+		} 
+		
+		List<String> customers = new ArrayList<String>();
+  
 		while ((st = br.readLine()) != null) {
-			String delims = "[ ]+";
-			String[] tokens = st.split(delims); 
-			arr.put(tokens[0] , tokens[1]);
-			System.out.println(tokens[0] + " " +tokens[1]);
+			if(st.compareTo("****") == 0) break;
+			customers.add(st);
 		}
+
+		st = br.readLine();
+
+		for(String customer:customers)
+			arr.put(customer , st); 
 
 	 } catch (FileNotFoundException e) {
 		    e.printStackTrace();
@@ -40,7 +52,7 @@ public class WalletApplication {
 	public WalletApplication() throws Exception{
 		
 		try{
-			File file = new File("input.txt");
+			File file = new File("IDs.txt");
 			readInFile(file);
 		}
 		catch (Exception e) {
@@ -96,7 +108,7 @@ public class WalletApplication {
 		if(val == null) return false;
 		else {
 			int num = Integer.parseInt(val);
-			if(num >= amount) return false;
+			if(num < amount) return false;
 			String ne = String.valueOf(num - amount);
 			arr.put(st , ne);
 			return true;
@@ -127,7 +139,7 @@ public class WalletApplication {
 
 	//Does reset the balance of the customers based on the textfile that will be available
 		try{
-			File file = new File("input.txt");
+			File file = new File("IDs.txt");
 			readInFile(file);
 		}
 		catch (Exception e) {

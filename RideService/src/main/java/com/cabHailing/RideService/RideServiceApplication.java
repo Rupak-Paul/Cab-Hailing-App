@@ -15,9 +15,9 @@ import java.lang.Math;
 public class RideServiceApplication {
 
 	
-	int[][] table = new int[1001][8];//It stores all the values related to the cabs and rides
-	int[] rideid = new int[1001];//It stores the ongoing rides and the cab mapping
-	int[] cabindex = new int[1001];//It stores the index of the cabs
+	int[][] table = new int[100001][8];//It stores all the values related to the cabs and rides
+	int[] rideid = new int[100001];//It stores the ongoing rides and the cab mapping
+	int[] cabindex = new int[100001];//It stores the index of the cabs
 	int no_of_cabs;//This will store the number of cabs present
 	//int[] location = new int[1001];//It stores the location of cabs in avail state
  
@@ -28,7 +28,9 @@ public class RideServiceApplication {
 
 		String st; 
 		int i = 0;
+		st = br.readLine();
 		while ((st = br.readLine()) != null) {
+			if(st.compareTo("****") == 0) break;
 			int num = Integer.parseInt(st);
 			table[i][0] = num;
 			cabindex[num] = i;//it stores on which index cabId = num is present
@@ -46,7 +48,7 @@ public class RideServiceApplication {
 		
 		//This piece of code initializes the arrays and all data structures present...................
 
-		for(int i = 0;i<1000;i++)
+		for(int i = 0;i<100000;i++)
 		{
 			rideid[i] = -1;
 			cabindex[i] = -1;
@@ -59,7 +61,7 @@ public class RideServiceApplication {
 		//............................................................................................
 
 		try{
-			File file = new File("input.txt");
+			File file = new File("IDs.txt");
 			readInFile(file);
 		}
 		catch (Exception e) {
@@ -104,8 +106,8 @@ public class RideServiceApplication {
 		
 	}
 	
-	@RequestMapping("/cabSignIn")
-	public boolean cabSignIn(@RequestParam(value = "cabId", defaultValue = "1") int cabId ,@RequestParam(value = "initialPos", defaultValue = "1")  int initialPos){
+	@RequestMapping("/cabSignsIn")
+	public boolean cabSignsIn(@RequestParam(value = "cabId", defaultValue = "1") int cabId ,@RequestParam(value = "initialPos", defaultValue = "1")  int initialPos){
 	
 		//If cabId is invalid or the cab is in signedIn state then return false
 		//Else make position of cab to the initialpos
@@ -127,8 +129,8 @@ public class RideServiceApplication {
 
 	}
 
-	@RequestMapping("/cabSignOut")
-	public boolean cabSignOut(@RequestParam(value = "cabId", defaultValue = "1") int cabId){
+	@RequestMapping("/cabSignsOut")
+	public boolean cabSignsOut(@RequestParam(value = "cabId", defaultValue = "1") int cabId){
 		
 		//Return true if cabId is valid and the cab is in available state
 		//Make appropriate changes
@@ -164,10 +166,10 @@ public class RideServiceApplication {
 		RestTemplate restTemplate = new RestTemplate();
 		Random rand = new Random();
 
-		int rideId = rand.nextInt(1000);
+		int rideId = rand.nextInt(100000);
 		while(rideid[rideId] != -1)
 		{
-			rideId = rand.nextInt(1000);
+			rideId = rand.nextInt(100000);
 		}
 	
 		//now i got unique rideId
@@ -223,8 +225,10 @@ public class RideServiceApplication {
 		{
 			
 			if(arr[i] == -1) return -1;
+			
+			
 
-			String my_url = "http://localhost:8080/requestRide?cabId=" + String.valueOf(table[arr[i]]) + "&rideId=" + String.valueOf(rideId) + "&sourceLoc=" + String.valueOf(sourceLoc) + "&destinationLoc=" + String.valueOf(destinationLoc);
+			String my_url = "http://172.17.0.2:8080/requestRide?cabId=" + String.valueOf(arr[i]) + "&rideId=" + String.valueOf(rideId) + "&sourceLoc=" + String.valueOf(sourceLoc) + "&destinationLoc=" + String.valueOf(destinationLoc);
 		
 			boolean res = restTemplate.getForObject(my_url, boolean.class);
 
@@ -232,48 +236,70 @@ public class RideServiceApplication {
 			{
 				//Now calculate fare
 				//As the cab has accepted the request it has gone to the commited state
-				//I do not need to change the state of the cab in the database of the rideService reason 					//yourself			
+				//I do not need to change the state of the cab in the database of the rideService reason 					//yourself	
+
+				//Now i have to change the state of the cab to commited state
+
+					
 				int ind = cabindex[arr[i]];
+				table[ind][1] = 1;
+				table[ind][3] = custId;
+				table[ind][4] = rideId;
+				table[ind][5] = destinationLoc;
+				rideid[rideId] = arr[i];
+
 				int fare = 10 * (Math.abs(sourceLoc - table[ind][2]) + Math.abs(destinationLoc - sourceLoc));
-				String my_url2 = "http://localhost:8082/deductAmount?custId=" + String.valueOf(custId) + "&amount=" + String.valueOf(fare);
-				boolean res2 = restTemplate.getForObject(my_url2, boolean.class);
-			
+				
+				RestTemplate restTemplate2 = new RestTemplate();
+
+				String my_url2 = "http://172.17.0.4:8080/deductAmount?custId=" + String.valueOf(custId) + "&amount=" + String.valueOf(fare);
+				boolean res2 = restTemplate2.getForObject(my_url2, boolean.class);
+				
 				if(res2 == true)
 				{
-					String my_url3 = "http://localhost:8080/rideStarted?cabId=" + String.valueOf(arr[i]) + "&rideId=" + String.valueOf(rideId);
-					boolean res3 = restTemplate.getForObject(my_url3, boolean.class);
+					RestTemplate restTemplate3 = new RestTemplate();
+
+
+					String my_url3 = "http://172.17.0.2:8080/rideStarted?cabId=" + String.valueOf(arr[i]) + "&rideId=" + String.valueOf(rideId);
+					boolean res3 = restTemplate3.getForObject(my_url3, boolean.class);
 
 					if(res3 == true)
 					{	
 						System.out.println("Every thing is going as planned");
-						
+						table[ind][2] = sourceLoc;
 						table[ind][1] = 2;
-						table[ind][3] = custId;
-						table[ind][4] = rideId;
-						table[ind][5] = destinationLoc;
-						rideid[rideId] = arr[i];
 						return rideId;
 
 					}
 					else
 					{
 						System.out.println("There is Something fishy");
+						return -1;
 					}
 				}
 				else
 				{
 					//If amount is not got deducted
-					String my_url4 = "http://localhost:8080/rideCanceled?cabId=" + String.valueOf(arr[i]) + "&rideId=" + String.valueOf(rideId);
-					boolean res4 = restTemplate.getForObject(my_url4, boolean.class);
+					
+					RestTemplate restTemplate4 = new RestTemplate();
+
+					String my_url4 = "http://172.17.0.2:8080/rideCanceled?cabId=" + String.valueOf(arr[i]) + "&rideId=" + String.valueOf(rideId);
+					boolean res4 = restTemplate4.getForObject(my_url4, boolean.class);
 					
 					if(res4 == true)
 					{
 						System.out.println("Every thing is going as planned");
+						table[ind][1] = 0;
+						table[ind][3] = -1;
+						table[ind][4] = -1;
+						table[ind][5] = -1;
+						rideid[rideId] = -1;
 						return -1;
 					}
 					else
 					{
 						System.out.println("There is Something fishy");
+						return -1;
 					}
 
 				}
@@ -298,13 +324,13 @@ public class RideServiceApplication {
 
 		if(table[ind][1] == -1) str+="signed-out";
 		else if(table[ind][1] == 0) str+="available";
-		else if(table[ind][1] == 1) str+="commited";
+		else if(table[ind][1] == 1) str+="committed";
 		else str+="giving-ride";
 
-		str+=" ";
+		str+= " ";
 
 		str+=String.valueOf(table[ind][2]);
-
+		
 		if(table[ind][1] == 2)
 		{
 			str+= " ";
@@ -315,6 +341,8 @@ public class RideServiceApplication {
 
 		return str;
 	}
+	
+
 
 	@RequestMapping("/reset")
 	public void reset(){
@@ -322,7 +350,6 @@ public class RideServiceApplication {
 		//1. Send cab.rideEnded req to all cabs in giving ride state
 		//2. Make appropriate changes
 		//3. send SignOut state to all the cabs in signIn state
-		
 		RestTemplate restTemplate = new RestTemplate();
 
 		for(int i = 0;i<no_of_cabs;i++)
@@ -332,7 +359,9 @@ public class RideServiceApplication {
 			
 			//Now the cab is in giving ride state
 			//Now i have to send cab.rideEnded a requset to end the ride rightnow
-			String my_url = "http://localhost:8080/rideEnded?cabId=" + String.valueOf(table[i][0]) + "&rideId=" + String.valueOf(table[i][4]);
+
+			
+			String my_url = "http://172.17.0.2:8080/rideEnded?cabId=" + String.valueOf(table[i][0]) + "&rideId=" + String.valueOf(table[i][4]);
 
 			boolean res = restTemplate.getForObject(my_url, boolean.class);
 
@@ -352,7 +381,7 @@ public class RideServiceApplication {
 		{
 			if(table[i][1] == -1) continue;
 
-			String my_url = "http://localhost:8080/cabSignsOut?cabId=" + String.valueOf(table[i][0]);
+			String my_url = "http://172.17.0.2:8080/signOut?cabId=" + String.valueOf(table[i][0]);
 			boolean res = restTemplate.getForObject(my_url, boolean.class);
 
 			if(res == true)
@@ -367,5 +396,17 @@ public class RideServiceApplication {
 
 	}
 
+	@RequestMapping("/test")
+	public String test(@RequestParam(value = "cabId", defaultValue = "1") int cabId){
+		
+		RestTemplate restTemplate = new RestTemplate();
+	
+		String my_url = "http://172.17.0.3:8080/getCabStatus?cabId=" + String.valueOf(cabId);		
 
+		String res = restTemplate.getForObject(my_url, String.class);
+		
+		return res;
+
+	}
+	
 }
